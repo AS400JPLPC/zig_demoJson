@@ -2,32 +2,14 @@ const std = @import("std");
 const utf = @import("std").unicode;
 
 const dds = @import("dds");
+// keyboard
+const kbd = @import("cursed").kbd;
+
 // tools utility
 const utl = @import("utils");
 
 const allocator = std.heap.page_allocator;
 
-
-
-
-
-
-const Rvals = enum {
-  testing,
-  production,
-};
-
-const Rbutton = enum {
-  Tkey,
-  title,
-};
-const Rdata = enum {
-  vals,
-  uptime,
-  hello,
-  decimalString,
-  button
-};
 
 const Ctype = enum {
   null,
@@ -41,29 +23,102 @@ const Ctype = enum {
   decimal_string
 };
 
+
+
+
+//..............................//
+
 const DEFBUTTON = struct {
-    Tkey : [] const u8,
-    title: [] const u8,
-  };
-const DEFVALS = struct {
-    testing : i32,
-    production : i32 ,
-  };
-
-const Rvalue = struct {
-  vals : DEFVALS,
-
-  uptime : i32,
-  hello  : [] const u8,
-  decimal: [] const u8,
-
-  button:std.ArrayList(DEFBUTTON) ,
-
+    name: [] const u8,
+    key : kbd,
+    show: bool,
+    check: bool,
+    title: []const u8
 };
 
-var ENRG : Rvalue =undefined ;
+const Jbutton = enum {
+  name,
+  key,
+  show,
+  check,
+  title
+};
 
-  
+//..............................//
+const DEFLABEL = struct {
+    name :  []const u8,
+    posx:   usize,
+    posy:   usize,
+    text:   []const u8,
+    title:  bool
+};
+
+const Jlabel = enum {
+  name,
+  posx,
+  posy,
+  text,
+  title
+};
+
+//..............................//
+const RPANEL = struct {
+    name:   [] const u8,
+    posx:   usize,
+    posy:   usize,
+
+    lines:  usize,
+    cols:   usize,
+
+    cadre:  dds.CADRE,
+
+    title:  []const u8 ,
+
+    button: std.ArrayList(DEFBUTTON),
+
+    label:  std.ArrayList(DEFLABEL)
+};
+
+const Jpanel = enum {
+  name,
+  posx,
+  posy,
+  lines,
+  cols,
+  cadre,
+  title,
+  button,
+  label
+};
+
+
+
+//var NPANEL = std.ArrayList(pnl.PANEL).init(allocator);
+
+var ENRG : RPANEL= undefined;
+
+
+//---------------------------------------------------------------------------
+//  string return enum
+
+fn strToEnum ( comptime EnumTag : type ,  vtext: [] const u8 )  EnumTag {
+
+    inline for (@typeInfo(EnumTag).Enum.fields) |f| {
+      
+      if ( std.mem.eql(u8, f.name , vtext) )  return @field(EnumTag, f.name);
+
+    }
+    
+
+    var buffer : [128] u8 =  [_]u8{0} ** 128;
+    var result =  std.fmt.bufPrintZ(buffer[0..], "invalid Text {s} for strToEnum ",.{vtext}) catch unreachable;
+    @panic(result);
+}
+
+//----------------------------------------------------
+// JSON
+//----------------------------------------------------
+
 const T = struct {
   x: ?std.json.Value,
 
@@ -84,6 +139,9 @@ const T = struct {
   }
 
   pub fn ctrlPack(self: T , Xtype : Ctype) !bool {
+
+    try printPack(self,Xtype);
+
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
 
@@ -109,24 +167,22 @@ const T = struct {
       },
 
       .string =>{
-
-          if (Xtype == Ctype.decimal_string) return utl.isDecimalStr(try std.fmt.allocPrint(allocator,"{s}",.{self.x.?.string}));
           if (Xtype != Ctype.string) return false;
+          if (Xtype == Ctype.decimal_string) return utl.isDecimalStr(try std.fmt.allocPrint(allocator,"{s}",.{self.x.?.string}));
       },
 
       .array =>{
-          if (Xtype != Ctype.string) return false;
+          if (Xtype != Ctype.array) return false;
       },
 
       .object => {
           if (Xtype != Ctype.object) return false;
-          const i = self.x.?;
-          const P = struct { value: ?std.json.Value };
-          try std.json.stringify(P{ .value = i }, .{ }, out.writer());
-          std.debug.print("{s}\n", .{ out.items });
+          //try printPack(self,Xtype);
       }
 
     }
+
+
     return true;
   }
 
@@ -146,13 +202,26 @@ const T = struct {
     }
     return T.init(self.x.?.array.items[i]);
   }
+
+
+  pub fn printPack(self: T , Xtype : Ctype) !void {
+
+    std.debug.print("{}:",.{Xtype});
+
+
+    var out = std.ArrayList(u8).init(allocator);
+    defer out.deinit();
+    const i = self.x.?;
+    const P = struct { value: ?std.json.Value };
+    try std.json.stringify(P{ .value = i }, .{ }, out.writer());
+    std.debug.print("{s}\n", .{ out.items });
+  }
 };
 
 
 
 
-
-pub fn jsonRecord(my_json : []const u8) !void {
+pub fn jsonDecode(my_json : []const u8) !void {
 
   var val: T = undefined;
   
@@ -174,124 +243,248 @@ pub fn jsonRecord(my_json : []const u8) !void {
   std.debug.print("----------------------------\r\n",.{});
   std.debug.print("----------------------------\r\n",.{});
 
-  const Record = std.enums.EnumIndexer(Rdata);
 
-  const Record_vals = std.enums.EnumIndexer(Rvals);
 
-  const Record_button = std.enums.EnumIndexer(Rbutton);
+  
 
-  var n: usize = 0 ;
-  var v: usize = 0 ;
-  while (n < Record.count) : ( n +=1 ) {
 
-      switch(Record.keyForIndex(n)) {
-        Rdata.vals =>  { 
-              v =0;
-              while (v < Record_vals.count) : ( v +=1 ) {
-                switch(Record_vals.keyForIndex(v)) {
-                  Rvals.testing => {
-                      val = json.get("vals").get(@tagName(Record_vals.keyForIndex(v)));
 
-                      //std.debug.print("{d}\r\n",.{val.x.?.integer});
-                      if ( try val.ctrlPack(Ctype.integer) )  
-                        ENRG.vals.testing = @intCast(val.x.?.integer)
-                      else 
+  val = json.get("PANEL");
+
+
+  var nbrPanel = val.x.?.array.items.len;
+
+  var p: usize = 0 ;
+
+  const Rpanel = std.enums.EnumIndexer(Jpanel);
+
+  const Rlabel = std.enums.EnumIndexer(Jlabel);
+
+  const Rbutton = std.enums.EnumIndexer(Jbutton);
+
+  while (p < nbrPanel) : ( p +=1 ) {
+
+
+    var n: usize = 0 ; // index
+
+
+
+
+    while (n < Rpanel.count) : ( n +=1 ) {
+    var v: usize = 0 ; // index 
+    var y: usize = 0 ; // array len
+    var z: usize = 0 ; // compteur 
+    var b: usize = 0 ; // button
+    var l: usize = 0 ; // label
+      switch(Rpanel.keyForIndex(n)) {
+
+        Jpanel.name =>  { 
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+
+              if ( try val.ctrlPack(Ctype.string) )  
+                ENRG.name = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  Panel err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.posx => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              if ( try val.ctrlPack(Ctype.integer) )  
+                ENRG.posx =  @intCast(val.x.?.integer)
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.posy => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              if ( try val.ctrlPack(Ctype.integer) )  
+                ENRG.posy =  @intCast(val.x.?.integer)
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.lines => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              if ( try val.ctrlPack(Ctype.integer) )  
+                ENRG.lines =  @intCast(val.x.?.integer)
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.cols => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              if ( try val.ctrlPack(Ctype.integer) )  
+                ENRG.cols =  @intCast(val.x.?.integer)
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.cadre => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              if ( try val.ctrlPack(Ctype.string) ) {
+                
+                ENRG.cadre = strToEnum(dds.CADRE, val.x.?.string);
+              }
+              else 
+                @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                  @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.title => {
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+                    
+              if ( try val.ctrlPack(Ctype.string) )  
+                  ENRG.title = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+              else 
+              @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
+                @tagName(Rpanel.keyForIndex(n))}));
+        },
+        Jpanel.button => {
+
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+
+              var bt :DEFBUTTON =undefined;
+              y = val.x.?.array.items.len;
+              z = 0;
+              b = 0;
+
+              while(z < y) : (z += 1 ) {
+
+                v =0;
+                while (v < Rbutton.count) : ( v +=1 ) {
+
+                  val = json.get("PANEL").index(p).get("button").index(b).get(@tagName(Rbutton.keyForIndex(v)));
+
+                  switch(Rbutton.keyForIndex(v)) {
+                    Jbutton.name => {
+                        if ( try val.ctrlPack(Ctype.string)) 
+                          bt.name =  try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+                        else 
                         @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
-                        @tagName(Record.keyForIndex(n)),
-                        @tagName(Record_vals.keyForIndex(v))}));
-                  },
-                  Rvals.production => {
-                      val = json.get("vals").get(@tagName(Record_vals.keyForIndex(v)));
-                      
-                      //std.debug.print("{d}\r\n",.{val.x.?.integer});
-                      if ( try val.ctrlPack(Ctype.integer) )  
-                        ENRG.vals.production =  @intCast(val.x.?.integer)
-                      else 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+                    },
+                    Jbutton.key => {
+                        if ( try val.ctrlPack(Ctype.string)) {
+                          
+                          bt.key = strToEnum(kbd, val.x.?.string);
+                                      
+                        }
+                        else 
                         @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
-                        @tagName(Record.keyForIndex(n)),
-                        @tagName(Record_vals.keyForIndex(v))}));
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+                    },
+                    Jbutton.show => {
+                        if ( try val.ctrlPack(Ctype.bool)) 
+                          bt.show = val.x.?.bool
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+
+                    },
+                    Jbutton.check=> {
+                        if ( try val.ctrlPack(Ctype.bool)) 
+                          bt.check = val.x.?.bool
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+
+                    },
+                    Jbutton.title => {
+                        if ( try val.ctrlPack(Ctype.string)) 
+                          bt.title = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+
+                        ENRG.button.append(bt) catch unreachable;
+                    }
+                  }
+                }
+                b +=1;
+              }
+
+        },
+        Jpanel.label => {
+
+              val = json.get("PANEL").index(p).get(@tagName(Rpanel.keyForIndex(n)));
+              
+              var lb :DEFLABEL =undefined;
+              y = val.x.?.array.items.len;
+              z = 0 ;
+              l = 0 ;
+              while(z < y) : (z += 1 ) {
+                
+                v =0;
+                while (v < Rlabel.count) : ( v +=1 ) {
+                        val = json.get("PANEL").index(p).get("label").index(l).get(@tagName(Rlabel.keyForIndex(v)));
+                        try val.printPack(Ctype.array);
+
+                  switch(Rlabel.keyForIndex(v)) {
+                    Jlabel.name => {
+                        if ( try val.ctrlPack(Ctype.string)) 
+                          lb.name =  try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rlabel.keyForIndex(v))}));
+                    },
+                    Jlabel.posx => {
+                        if ( try val.ctrlPack(Ctype.integer)) {
+                          
+                          lb.posx = @intCast(val.x.?.integer);
+                        }
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+                    },
+                    Jlabel.posy => {
+                        if ( try val.ctrlPack(Ctype.integer)) {
+                          
+                          lb.posy = @intCast(val.x.?.integer);
+                        }
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+                    },
+                    Jlabel.text => {
+                        if ( try val.ctrlPack(Ctype.string)) 
+                          lb.text =  try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rlabel.keyForIndex(v))}));
+                    },
+                    Jlabel.title => {
+                        if ( try val.ctrlPack(Ctype.bool)) 
+                          lb.title = val.x.?.bool
+                        else 
+                        @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}.{s}\n", .{ 
+                          @tagName(Rpanel.keyForIndex(n)),
+                          @tagName(Rbutton.keyForIndex(v))}));
+
+                        ENRG.label.append(lb) catch unreachable;
+                    }
 
                   }
                 }
+                l +=1;
               }
-        },
-        Rdata.uptime => {
-          val = json.get(@tagName(Record.keyForIndex(n)));
-                
-          //std.debug.print("{d}\r\n",.{val.x.?.integer});
-          if ( try val.ctrlPack(Ctype.integer) )  
-              ENRG.uptime =  @intCast(val.x.?.integer)
-          else 
-          @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
-          @tagName(Record.keyForIndex(n))}));
-
-        },
-        Rdata.hello => {
-          val = json.get(@tagName(Record.keyForIndex(n)));
-                
-          //std.debug.print("{s}\r\n",.{val.x.?.string});
-          if ( try val.ctrlPack(Ctype.string )) 
-              ENRG.hello = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
-          else 
-          @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
-          @tagName(Record.keyForIndex(n))}));
-
-        },
-        Rdata.decimalString => {
-          val = json.get(@tagName(Record.keyForIndex(n)));
-
-          std.debug.print("{s}\r\n",.{val.x.?.string});
-          if ( try val.ctrlPack(Ctype.decimal_string))  
-            ENRG.decimal = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
-          else 
-          @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
-          @tagName(Record.keyForIndex(n))}));
-
-
-        },
-        Rdata.button => {
-          val = json.get(@tagName(Record.keyForIndex(n)));
-
-          var btn : DEFBUTTON = undefined;
-          var y = val.x.?.array.items.len;
-          var z : usize = 0;
-
-          //std.debug.print("{d}\r\n",.{y});
-            while(z < y) : (z += 1 ) {
-              //std.debug.print("{d}\r\n",.{z});
-              v =0;
-              while (v < Record_button.count) : ( v +=1 ) {
-
-                switch(Record_button.keyForIndex(v)) {
-                  Rbutton.Tkey => {
-                      val = json.get("button").index(z).get(@tagName(Record_button.keyForIndex(v)));
-
-                      //std.debug.print("{s}\r\n",.{val.x.?.string});
-                      if ( try val.ctrlPack(Ctype.string)) 
-                        btn.Tkey =  try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
-                      else 
-                      @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
-                      @tagName(Record.keyForIndex(n))}));
-                  },
-                  Rbutton.title => {
-                      val = json.get("button").index(z).get(@tagName(Record_button.keyForIndex(v)));
-
-                      //std.debug.print("{s}\r\n",.{val.x.?.string});
-                      if ( try val.ctrlPack(Ctype.string)) 
-                        btn.title = try std.fmt.allocPrint(allocator,"{s}",.{val.x.?.string})
-                      else 
-                      @panic(try std.fmt.allocPrint(allocator,"Json  err_Field :{s}\n", .{ 
-                      @tagName(Record.keyForIndex(n))}));
-
-                      ENRG.button.append(btn) catch unreachable;
-                  }
-                }
-              }
-            }
         }
 
       }
     }
+  }
 
 }
 
@@ -308,52 +501,115 @@ pub fn main() !void {
     var w = std.json.writeStream(out, .{ .whitespace = .indent_2 });
     defer w.deinit();
 
-    try w.beginObject();
+  try w.beginObject();
+    try w.objectField("PANEL");
 
-      try w.objectField("vals");
+    try w.beginArray();
       try w.beginObject();
-        try w.objectField("testing");
-        try w.print("  {}", .{1});
-        try w.objectField("production");
-        try w.print("  {}", .{42});
+        try w.objectField("name");
+        try w.print("  \"{s}\"", .{"panel01"});
+
+        try w.objectField("posx");
+        try w.print("  {d}", .{1});
+        try w.objectField("posy");
+        try w.print("  {d}", .{2});
+
+        try w.objectField("lines");
+        try w.print(" {d}", .{3});
+        try w.objectField("cols");
+        try w.print("  {d}", .{4});
+
+        try w.objectField("cadre");
+        try w.print(" \"{s}\"", .{"line1"});
+
+        try w.objectField("title");
+        try w.print(" \"{s}\"", .{"Title-PANEL"});
+
+        try w.objectField("button");
+        try w.beginArray();
+
+          try w.beginObject();
+          try w.objectField("name");
+          try w.print("  \"{s}\"", .{"nF3"});
+          try w.objectField("key");
+          try w.print("   \"{s}\"", .{"F3"});
+          try w.objectField("show");
+          try w.print("  {}", .{true});
+          try w.objectField("check");
+          try w.print(" {}", .{false});
+          try w.objectField("title");
+          try w.print(" \"{s}\"", .{"F3 exit"});
+          try w.endObject();
+
+
+          try w.beginObject();
+          try w.objectField("name");
+          try w.print("  \"{s}\"", .{"nF9"});
+          try w.objectField("key");
+          try w.print("   \"{s}\"", .{"F9"});
+          try w.objectField("show");
+          try w.print("  {}", .{true});
+          try w.objectField("check");
+          try w.print(" {}", .{false});
+          try w.objectField("title");
+          try w.print(" \"{s}\"", .{"F9 Enrg."});
+          try w.endObject();
+
+        try w.endArray();
+
+        try w.objectField("label");
+        try w.beginArray();
+
+          try w.beginObject();
+          try w.objectField("name");
+          try w.print("  \"{s}\"", .{"lbl01"});
+
+          try w.objectField("posx");
+          try w.print("  {d}", .{10});
+          try w.objectField("posy");
+          try w.print("  {d}", .{11});
+
+          try w.objectField("text");
+          try w.print("  \"{s}\"", .{"Nom.......:"});
+          try w.objectField("title");
+          try w.print(" {}", .{true});
+          try w.endObject();
+
+
+          try w.beginObject();
+          try w.objectField("name");
+          try w.print("  \"{s}\"", .{"lbl02"});
+
+          try w.objectField("posx");
+          try w.print("  {d}", .{11});
+          try w.objectField("posy");
+          try w.print("  {d}", .{11});
+
+          try w.objectField("text");
+          try w.print("  \"{s}\"", .{"Prénom....:"});
+          try w.objectField("title");
+          try w.print(" {}", .{true});
+          try w.endObject();
+
+        try w.endArray();
       try w.endObject();
 
-      try w.objectField("uptime");
-      try w.print("  {}", .{9999});
-      try w.objectField("hello");
-      try w.print("  \"{s}\"", .{"bonjour"});
-      try w.objectField("decimalString");
-      try w.print("  \"{s}\"", .{"71.10"}); 
-
-      try w.objectField("button");
-      try w.beginArray();
-
-        try w.beginObject();
-        try w.objectField("Tkey");
-        try w.print("  \"{s}\"", .{"F3"});
-        try w.objectField("title");
-        try w.print("  \"{s}\"", .{"F3 exit"});
-        try w.endObject();
-
-        try w.beginObject();
-        try w.objectField("Tkey");
-        try w.print("  \"{s}\"", .{"F9"});
-        try w.objectField("title");
-        try w.print("  \"{s}\"", .{"F9 enrg"});
-        try w.endObject();
-
-      try w.endArray();
-
-    try w.endObject();
+    try w.endArray();
+  try w.endObject();
 
     const result = slice_stream.getWritten();
 
     //std.debug.print("{s}\r\n",.{result});
 
     var my_file = try std.fs.cwd().createFile("fileJson.txt", .{ .read = true });
-    defer my_file.close();
+    
 
     _ = try my_file.write(result);
+    my_file.close();
+
+    my_file = try std.fs.cwd().openFile("fileJson.txt", .{});
+    defer my_file.close();
+
 
       var buf : []u8= allocator.alloc(u8, result.len) catch unreachable ;
 
@@ -365,19 +621,41 @@ pub fn main() !void {
 
     // init arraylist 
     ENRG.button = std.ArrayList(DEFBUTTON).init(allocator);
+    ENRG.label = std.ArrayList(DEFLABEL).init(allocator);
 
     // return  catch after panic
 
-    jsonRecord(buf) catch return ;
+    jsonDecode(buf) catch return ;
 
-    std.debug.print("{d}\r\n",.{ENRG.vals.testing});
-    std.debug.print("{d}\r\n",.{ENRG.vals.production});
-    std.debug.print("{d}\r\n",.{ENRG.uptime});
-    std.debug.print("{s}\r\n",.{ENRG.hello});
-    std.debug.print("{s}\r\n",.{ENRG.decimal});
-    std.debug.print("{s}\r\n",.{ENRG.button.items[0].Tkey});
-    std.debug.print("{s}\r\n",.{ENRG.button.items[0].title});
-    std.debug.print("{s}\r\n",.{ENRG.button.items[1].Tkey});
-    std.debug.print("{s}\r\n",.{ENRG.button.items[1].title});
+    std.debug.print("Panel \r\n",.{});
 
+    std.debug.print("{} :{s}\r\n",.{Jpanel.name  ,ENRG.name});
+    std.debug.print("{} :{d}\r\n",.{Jpanel.posx  ,ENRG.posx});
+    std.debug.print("{} :{d}\r\n",.{Jpanel.posy  ,ENRG.posy});
+
+    std.debug.print("{} :{d}\r\n",.{Jpanel.lines ,ENRG.lines});
+    std.debug.print("{} :{d}\r\n",.{Jpanel.cols  ,ENRG.cols});
+
+    std.debug.print("{} :{} \r\n",.{Jpanel.cadre  ,ENRG.cadre});
+
+    std.debug.print("{} :{s}\r\n",.{Jpanel.title  ,ENRG.title});
+
+    std.debug.print("Panel Button\r\n",.{});
+
+
+    for (ENRG.button.items , 0..) | _, idx|{
+    std.debug.print("{} :{s}\r\n",.{Jbutton.name  ,ENRG.button.items[idx].name});
+    std.debug.print("{} :{} \r\n",.{Jbutton.key  ,ENRG.button.items[idx].key});
+    std.debug.print("{} :{} \r\n",.{Jbutton.show  ,ENRG.button.items[idx].show});
+    std.debug.print("{} :{} \r\n",.{Jbutton.check  ,ENRG.button.items[idx].check});
+    std.debug.print("{} :{s} \r\n",.{Jbutton.title  ,ENRG.button.items[idx].title});
+    }
+
+    for (ENRG.label.items , 0..) | _, idx|{
+    std.debug.print("{} :{s}\r\n",.{Jlabel.name  ,ENRG.label.items[idx].name});
+    std.debug.print("{} :{d}\r\n",.{Jlabel.posx  ,ENRG.label.items[idx].posx});
+    std.debug.print("{} :{d}\r\n",.{Jlabel.posy  ,ENRG.label.items[idx].posy});
+    std.debug.print("{} :{s}\r\n",.{Jlabel.text  ,ENRG.label.items[idx].text});
+    std.debug.print("{} :{} \r\n",.{Jlabel.title ,ENRG.label.items[idx].title});
+    }
 }

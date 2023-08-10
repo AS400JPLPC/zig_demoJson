@@ -17,6 +17,7 @@ pub fn build(b: *std.build) void {
 
     // Definition of module
 
+        // Definition of module
     // data commune
     const dds = b.createModule(.{
       .source_file = .{ .path = "./deps/curse/dds.zig" },
@@ -27,6 +28,13 @@ pub fn build(b: *std.build) void {
       .dependencies= &.{.{ .name = "dds", .module = dds }},
     });
 
+    const cursed = b.createModule(.{
+      .source_file = .{ .path = "./deps/curse/cursed.zig" },
+      .dependencies= &.{
+        .{ .name = "dds", .module = dds },
+        .{ .name = "utils", .module = utils },
+      },
+    });
 
 
 
@@ -44,6 +52,8 @@ pub fn build(b: *std.build) void {
     Prog.addObjectFile(.{.cwd_relative = "/usr/lib/libpcre2-posix.so"});
     Prog.addModule("dds"   , dds);
     Prog.addModule("utils" , utils);
+    Prog.addModule("cursed", cursed);
+
 
 
 
