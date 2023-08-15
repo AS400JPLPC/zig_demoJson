@@ -10,6 +10,10 @@ I was inspired by this code, it was good.<BR />
 <BR />
 [ziggit.dev](https://ziggit.dev/t/here-is-my-mostly-complete-json-parsing-utility/1334/10)
 <BR />
+thank you
+[logger](https://github.com/kissy24/zig-logger)<BR />  
+<BR /> 
+<BR /> 
 Since there aren't many examples, that does the job from start to finish.<BR />
 <BR />
 This demonstration applies to the possibility of saving and reading JSON.<BR />

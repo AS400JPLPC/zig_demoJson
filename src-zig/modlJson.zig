@@ -1,12 +1,16 @@
 const std = @import("std");
-const utf = @import("std").unicode;
-
 const dds = @import("dds");
 // keyboard
 const kbd = @import("cursed").kbd;
 
 // tools utility
 const utl = @import("utils");
+
+const deb_Log = @import("logger").openFile;   // open  file
+const end_Log = @import("logger").closeFile;  // close file
+const plog   = @import("logger").scoped;      // print file 
+
+
 
 const allocator = std.heap.page_allocator;
 
@@ -22,7 +26,6 @@ const Ctype = enum {
   object,
   decimal_string
 };
-
 
 
 
@@ -235,17 +238,6 @@ pub fn jsonDecode(my_json : []const u8) !void {
   const json = T.init(parsed.value);
 
   _= try json.ctrlPack(Ctype.object);
-
-  
-
-
-
-  std.debug.print("----------------------------\r\n",.{});
-  std.debug.print("----------------------------\r\n",.{});
-
-
-
-  
 
 
 
@@ -488,11 +480,20 @@ pub fn jsonDecode(my_json : []const u8) !void {
 
 }
 
+pub const ErrMain = error{
+        Invalide_size,
+};
 
+
+// astuce dangereuse reserve internal function
+fn strToUsize_01(str: []const u8) usize{
+      return std.fmt.parseUnsigned(u64, str,10)  catch  { 
+        plog(.ERROR).err(" err{s}",.{str});
+        @panic("panic à bord");}; 
+}
 
 pub fn main() !void {
-
-
+  
 
     var out_buf: [1024]u8 = undefined;
     var slice_stream = std.io.fixedBufferStream(&out_buf);
@@ -627,35 +628,48 @@ pub fn main() !void {
 
     jsonDecode(buf) catch return ;
 
-    std.debug.print("Panel \r\n",.{});
-
-    std.debug.print("{} :{s}\r\n",.{Jpanel.name  ,ENRG.name});
-    std.debug.print("{} :{d}\r\n",.{Jpanel.posx  ,ENRG.posx});
-    std.debug.print("{} :{d}\r\n",.{Jpanel.posy  ,ENRG.posy});
-
-    std.debug.print("{} :{d}\r\n",.{Jpanel.lines ,ENRG.lines});
-    std.debug.print("{} :{d}\r\n",.{Jpanel.cols  ,ENRG.cols});
-
-    std.debug.print("{} :{} \r\n",.{Jpanel.cadre  ,ENRG.cadre});
-
-    std.debug.print("{} :{s}\r\n",.{Jpanel.title  ,ENRG.title});
-
-    std.debug.print("Panel Button\r\n",.{});
 
 
-    for (ENRG.button.items , 0..) | _, idx|{
-    std.debug.print("{} :{s}\r\n",.{Jbutton.name  ,ENRG.button.items[idx].name});
-    std.debug.print("{} :{} \r\n",.{Jbutton.key  ,ENRG.button.items[idx].key});
-    std.debug.print("{} :{} \r\n",.{Jbutton.show  ,ENRG.button.items[idx].show});
-    std.debug.print("{} :{} \r\n",.{Jbutton.check  ,ENRG.button.items[idx].check});
-    std.debug.print("{} :{s} \r\n",.{Jbutton.title  ,ENRG.button.items[idx].title});
-    }
 
-    for (ENRG.label.items , 0..) | _, idx|{
-    std.debug.print("{} :{s}\r\n",.{Jlabel.name  ,ENRG.label.items[idx].name});
-    std.debug.print("{} :{d}\r\n",.{Jlabel.posx  ,ENRG.label.items[idx].posx});
-    std.debug.print("{} :{d}\r\n",.{Jlabel.posy  ,ENRG.label.items[idx].posy});
-    std.debug.print("{} :{s}\r\n",.{Jlabel.text  ,ENRG.label.items[idx].text});
-    std.debug.print("{} :{} \r\n",.{Jlabel.title ,ENRG.label.items[idx].title});
-    }
+
+deb_Log("zmodlJson.txt");
+
+plog(.main).debug("Begin\n", .{});
+
+plog(.schema).debug("\nwrite Json",.{});
+plog(.schema).debug("\n{s}\n",.{buf});
+plog(.schema).debug("\nRead Json",.{});
+
+plog(.Panel).debug("\n",.{});
+plog(.Panel).debug("{s}",.{ENRG.name});
+plog(.Panel).debug("{d}",.{ENRG.posx});
+plog(.Panel).debug("{d}",.{ENRG.posy});
+plog(.Panel).debug("{}", .{ENRG.cadre});
+plog(.Panel).debug("{s}\n",.{ENRG.title});
+
+
+plog(.Button).debug("\n", .{});
+for (ENRG.button.items ) | f|{
+  plog(.Button).debug("{s}",.{f.name});
+  plog(.Button).debug("{any}" ,.{f.key});
+  plog(.Button).debug("{}" ,.{f.show});
+  plog(.Button).debug("{}" ,.{f.check});
+  plog(.Button).debug("{s}\n",.{f.title});
 }
+
+plog(.Label).debug("\n", .{});
+for (ENRG.label.items ) | f|{
+  plog(.Label).debug("{s}",.{f.name});
+  plog(.Label).debug("{d}" ,.{f.posx});
+  plog(.Label).debug("{d}" ,.{f.posy});
+  plog(.Label).debug("{s}" ,.{f.text});
+  plog(.Label).debug("{}\n",.{f.title});
+}
+
+_= strToUsize_01("test");
+
+plog(.end).debug("End.\n", .{});
+
+end_Log();
+
+} // end
