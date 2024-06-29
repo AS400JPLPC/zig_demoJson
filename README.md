@@ -1,7 +1,7 @@
 # zig_demoJson
 **ZIG-LANG  essai JSON ** <BR />
   
-# ZIG V 0.11.0<BR />
+
 
 Good morning,<BR />
 I needed to make a program and work with JSON.<BR />
@@ -22,3 +22,5 @@ To put in a structure and see how to make a JSON<BR />
 I kept it simple, it's not a work of abstraction, but something that can be incorporated into a module incorporating into a model.<BR />
 <BR />
 Thanks to everyone who helped me.<BR />
+
+# UPDATE ZIG V 0.13.0<BR />
